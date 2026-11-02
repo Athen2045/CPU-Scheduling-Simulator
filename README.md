@@ -91,6 +91,13 @@ The output shows the execution timeline, including idle intervals, followed by a
 
 This simulator's purpose is to make queue behavior and scheduling metrics visible through a discrete-time model.
 
+## Example Output
+
+The following example shows the program input, Round Robin execution timeline, and calculated scheduling metrics.
+
+![Example output from the CPU Scheduling Simulator](assets/Output.png)
+
+
 ## Sources
 
 - [Source Code Inspiration](https://github.com/yousefkotp/CPU-Scheduling-Algorithms)
