@@ -3,98 +3,95 @@
 
 #define MAX_PROCESSES 50
 
+/* Stores details and final times for one process. ITS EASIER TO USE A STRUCTURE*/
 typedef struct {
     int id;
     int arrival;
     int burst;
-    int priority;
-    int remaining;
-    int first_start;
-    int completion;
+    int start;
+    int finish;
 } Process;
 
+/* Circular queue that stores pointers to processes. So that we can manage the order of execution*/
 typedef struct {
-    Process **items;
+    Process **data;
     int front;
     int rear;
-    int count;
-    int capacity;
+    int n;
+    int cap;
 } Queue;
 
+/* Created an empty queue and allocate space for its process pointers */
 void initQ(Queue *q, int cap) {
-    q->items = (Process **)malloc(sizeof(Process *) * cap);
-    if (q->items == NULL) {
+    q->data = (Process **)malloc(sizeof(Process *) * cap);
+    if (q->data == NULL) {
         printf("Queue memory allocation failed.\n");
         exit(EXIT_FAILURE);
     }
     q->front = 0;
     q->rear = 0;
-    q->count = 0;
-    q->capacity = cap;
+    q->n = 0;
+    q->cap = cap;
 }
 
+/* FREEE memory used by the queue, "LET IT GO, LEt it go"*/
 void freeQ(Queue *q) {
-    free(q->items);
-    q->items = NULL;
+    free(q->data);
+    q->data = NULL;
 }
 
-int isEmpty(Queue *q) {
-    return q->count == 0;
+/* Returns 1 when the queue has no processes*/
+int emptyQ(Queue *q) {
+    return q->n == 0;
 }
 
+/* Add a process pointer at the rear of the circular queue*/
 void enQ(Queue *q, Process *p) {
-    if (q->count == q->capacity) {
-        printf("Queue overflow. Increase the queue capacity.\n");
+    if (q->n == q->cap) {
+        printf("Queue overflow.\n");
         exit(EXIT_FAILURE);
     }
 
-    q->items[q->rear] = p;
-    q->rear = (q->rear + 1) % q->capacity;
-    q->count++;
+    q->data[q->rear] = p;
+    q->rear = (q->rear + 1) % q->cap;
+    q->n++;
 }
 
 Process *deQ(Queue *q) {
     Process *p;
 
-    if (isEmpty(q)) {
+    if (emptyQ(q)) {
         return NULL;
     }
 
-    p = q->items[q->front];
-    q->front = (q->front + 1) % q->capacity;
-    q->count--;
+    p = q->data[q->front];
+    q->front = (q->front + 1) % q->cap;
+    q->n--;
     return p;
-}
-
-void resetP(Process p[], int n) {
-    int i;
-    for (i = 0; i < n; i++) {
-        p[i].remaining = p[i].burst;
-        p[i].first_start = -1;
-        p[i].completion = 0;
-    }
 }
 
 void sortP(Process p[], int n) {
     int i;
     int j;
 
-    /* Simple selection sort: useful here because it exposes the array logic. I Think????? */
     for (i = 0; i < n - 1; i++) {
-        int earliest = i;
+        int first = i;
+
         for (j = i + 1; j < n; j++) {
-            if (p[j].arrival < p[earliest].arrival) {
-                earliest = j;
+            if (p[j].arrival < p[first].arrival) {
+                first = j;
             }
         }
-        if (earliest != i) {
+
+        if (first != i) {
             Process tmp = p[i];
-            p[i] = p[earliest];
-            p[earliest] = tmp;
+            p[i] = p[first];
+            p[first] = tmp;
         }
     }
 }
 
+/* Add all processes that have arrived by the current time */
 void addArr(Process p[], int n, int t, int *nx, Queue *q) {
     while (*nx < n && p[*nx].arrival <= t) {
         enQ(q, &p[*nx]);
@@ -102,23 +99,25 @@ void addArr(Process p[], int n, int t, int *nx, Queue *q) {
     }
 }
 
+/* Prints one part of the CPU execution timeline*/
 void showRun(Process *p, int st, int end) {
     printf("  time %d -> %d : P%d\n", st, end, p->id);
 }
 
+/* Runs FCFS: the first process in the queue runs until completions*/
 void fcfs(Process p[], int n) {
-    Queue ready;
+    Queue q;
     int t = 0;
     int nx = 0;
     int done = 0;
 
-    initQ(&ready, n + 1);
+    initQ(&q, n + 1);
     printf("\nFCFS schedule (First Come, First Served)\n");
 
     while (done < n) {
-        addArr(p, n, t, &nx, &ready);
+        addArr(p, n, t, &nx, &q);
 
-        if (isEmpty(&ready)) {
+        if (emptyQ(&q)) {
             if (nx < n) {
                 printf("  time %d -> %d : IDLE\n", t, p[nx].arrival);
                 t = p[nx].arrival;
@@ -127,238 +126,96 @@ void fcfs(Process p[], int n) {
         }
 
         {
-            Process *cur = deQ(&ready);
+            Process *cur = deQ(&q);
             int st = t;
 
-            cur->first_start = t;
-            t += cur->remaining;
-            cur->remaining = 0;
-            cur->completion = t;
+            cur->start = t;
+            t += cur->burst;
+            cur->finish = t;
             done++;
             showRun(cur, st, t);
         }
     }
 
-    freeQ(&ready);
+    freeQ(&q);
 }
 
-void rr(Process p[], int n, int quantum) {
-    Queue ready;
-    int t = 0;
-    int nx = 0;
-    int done = 0;
-
-    initQ(&ready, n + 1);
-    printf("\nRound Robin schedule (quantum = %d)\n", quantum);
-
-    while (done < n) {
-        Process *cur;
-        int run;
-        int st;
-
-        addArr(p, n, t, &nx, &ready);
-        if (isEmpty(&ready)) {
-            if (nx < n) {
-                printf("  time %d -> %d : IDLE\n", t, p[nx].arrival);
-                t = p[nx].arrival;
-            }
-            continue;
-        }
-
-        cur = deQ(&ready);
-        if (cur->first_start == -1) {
-            cur->first_start = t;
-        }
-
-        run = cur->remaining < quantum ? cur->remaining : quantum;
-        st = t;
-        t += run;
-        cur->remaining -= run;
-        showRun(cur, st, t);
-
-        addArr(p, n, t, &nx, &ready);
-        if (cur->remaining > 0) {
-            enQ(&ready, cur);
-        } else {
-            cur->completion = t;
-            done++;
-        }
-    }
-
-    freeQ(&ready);
-}
-
-Process *pickPri(Queue *ready) {
+/* Calculates and displays the scheduling metrics*/
+void showRes(Process p[], int n) {
     int i;
-    int best = ready->front;
-    int position = ready->front;
-
-    for (i = 0; i < ready->count; i++) {
-        Process *candidate = ready->items[position];
-        Process *selected = ready->items[best];
-
-        if (candidate->priority < selected->priority ||
-            (candidate->priority == selected->priority && candidate->arrival < selected->arrival)) {
-            best = position;
-        }
-        position = (position + 1) % ready->capacity;
-    }
-
-    /* Remove the chosen item while preserving the order of the other items. Its position is stored in 'best'. I believe this is the correct approach. */
-    {
-        Process *chosen = ready->items[best];
-        position = best;
-        while (position != ready->rear) {
-            int next_position = (position + 1) % ready->capacity;
-            if (next_position == ready->rear) {
-                break;
-            }
-            ready->items[position] = ready->items[next_position];
-            position = next_position;
-        }
-        ready->rear = (ready->rear - 1 + ready->capacity) % ready->capacity;
-        ready->count--;
-        return chosen;
-    }
-}
-
-void pri(Process p[], int n) {
-    Queue ready;
-    int t = 0;
-    int nx = 0;
-    int done = 0;
-
-    initQ(&ready, n + 1);
-    printf("\nPriority schedule (non-preemptive; smaller number = higher priority)\n");
-
-    while (done < n) {
-        Process *cur;
-        int st;
-
-        addArr(p, n, t, &nx, &ready);
-        if (isEmpty(&ready)) {
-            if (nx < n) {
-                printf("  time %d -> %d : IDLE\n", t, p[nx].arrival);
-                t = p[nx].arrival;
-            }
-            continue;
-        }
-
-        cur = pickPri(&ready);
-        cur->first_start = t;
-        st = t;
-        t += cur->remaining;
-        cur->remaining = 0;
-        cur->completion = t;
-        done++;
-        showRun(cur, st, t);
-    }
-
-    freeQ(&ready);
-}
-
-void showRes(Process processes[], int count) {
-    int i;
-    double total_waiting = 0.0;
-    double total_turnaround = 0.0;
-    double total_response = 0.0;
+    double totalWait = 0.0;
+    double totalTurn = 0.0;
+    double totalResp = 0.0;
 
     printf("\nResults\n");
-    printf("PID  Arrival  Burst  Priority  Completion  Turnaround  Waiting  Response\n");
-    for (i = 0; i < count; i++) {
-        int turnaround = processes[i].completion - processes[i].arrival;
-        int waiting = turnaround - processes[i].burst;
-        int response = processes[i].first_start - processes[i].arrival;
+    printf("PID  Arrival  Burst  Start  Finish  Turnaround  Waiting  Response\n");
 
-        printf("P%-3d %-8d %-6d %-9d %-11d %-11d %-8d %d\n",
-               processes[i].id, processes[i].arrival, processes[i].burst,
-               processes[i].priority, processes[i].completion, turnaround,
-               waiting, response);
-        total_waiting += waiting;
-        total_turnaround += turnaround;
-        total_response += response;
+    for (i = 0; i < n; i++) {
+        /* Calculates metrics for the current proce*/
+        int turn = p[i].finish - p[i].arrival;
+        int wait = turn - p[i].burst;
+        int resp = p[i].start - p[i].arrival;
+
+        printf("P%-3d %-8d %-6d %-6d %-7d %-11d %-8d %d\n",
+               p[i].id, p[i].arrival, p[i].burst, p[i].start,
+               p[i].finish, turn, wait, resp);
+
+        totalWait += wait;
+        totalTurn += turn;
+        totalResp += resp;
     }
 
-    printf("\nAverage waiting time    : %.2f\n", total_waiting / count);
-    printf("Average turnaround time : %.2f\n", total_turnaround / count);
-    printf("Average response time   : %.2f\n", total_response / count);
+    printf("\nAverage waiting time    : %.2f\n", totalWait / n);
+    printf("Average turnaround time : %.2f\n", totalTurn / n);
+    printf("Average response time   : %.2f\n", totalResp / n);
 }
 
+/* Reads input and runs the simulator, and releases allocated memory */
 int main(void) {
-    Process *processes;
-    int count;
-    int choice;
-    int quantum = 0;
+    Process *p;
+    int n;
+    int i;
 
     printf("CPU Scheduling Simulator\n");
+    printf("This version demonstrates FCFS using a circular queue.\n");
     printf("Enter number of processes (1-%d): ", MAX_PROCESSES);
-    if (scanf("%d", &count) != 1 || count < 1 || count > MAX_PROCESSES) {
+
+    if (scanf("%d", &n) != 1 || n < 1 || n > MAX_PROCESSES) {
         printf("Invalid number of processes.\n");
         return 1;
     }
 
-    processes = (Process *)malloc(sizeof(Process) * count);
-    if (processes == NULL) {
-        printf("Memory allocation failed.\n");
+    p = (Process *)malloc(sizeof(Process) * n);
+    if (p == NULL) {
+        printf("Process memory allocation failed.\n");
         return 1;
     }
 
-    printf("\nFor each process enter: arrival_time burst_time priority\n");
-    printf("Priority uses smaller numbers first (1 is highest).\n");
-    printf("Example: 0 5 2 means arrival=0, burst=5, priority=2.\n");
-    {
-        int i;
-        for (i = 0; i < count; i++) {
-            processes[i].id = i + 1;
-            printf("P%d (arrival burst priority): ", i + 1);
-            if (scanf("%d %d %d", &processes[i].arrival,
-                      &processes[i].burst, &processes[i].priority) != 3 ||
-                processes[i].arrival < 0 || processes[i].burst <= 0 ||
-                processes[i].priority <= 0) {
-                printf("Invalid process input.\n");
-                free(processes);
-                return 1;
-            }
-        }
-    }
+    printf("\nFor each process enter: arrival_time burst_time\n");
+    printf("Example: 0 5 means arrival=0 and burst=5.\n");
 
-    printf("\nChoose an algorithm:\n");
-    printf("1. First Come, First Served (FCFS)\n");
-    printf("2. Round Robin\n");
-    printf("3. Priority (non-preemptive)\n");
-    printf("Choice: ");
-    if (scanf("%d", &choice) != 1 || choice < 1 || choice > 3) {
-        printf("Invalid choice.\n");
-        free(processes);
-        return 1;
-    }
+    for (i = 0; i < n; i++) {
+        p[i].id = i + 1;
+        printf("P%d (arrival burst): ", i + 1);
 
-    if (choice == 2) {
-        printf("Enter time quantum (> 0): ");
-        if (scanf("%d", &quantum) != 1 || quantum <= 0) {
-            printf("Invalid time quantum.\n");
-            free(processes);
+        if (scanf("%d %d", &p[i].arrival, &p[i].burst) != 2 ||
+            p[i].arrival < 0 || p[i].burst <= 0) {
+            printf("Invalid process input.\n");
+            free(p);
             return 1;
         }
     }
 
     printf("\nTimeline format: start time -> end time : process using the CPU.\n");
-    sortP(processes, count);
-    resetP(processes, count);
-    if (choice == 1) {
-        fcfs(processes, count);
-    } else if (choice == 2) {
-        rr(processes, count, quantum);
-    } else {
-        pri(processes, count);
-    }
-    showRes(processes, count);
+    sortP(p, n);
+    fcfs(p, n);
+    showRes(p, n);
 
     printf("\nHow to read the results:\n");
-    printf("Turnaround = completion - arrival\n");
+    printf("Turnaround = finish - arrival\n");
     printf("Waiting    = turnaround - burst\n");
     printf("Response   = first CPU start - arrival\n");
 
-    free(processes);
+    free(p);
     return 0;
 }

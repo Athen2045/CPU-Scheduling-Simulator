@@ -1,102 +1,113 @@
-# Group - 12 : CPU Scheduling Simulator
+# Group 12: CPU Scheduling Simulator
 
 ## What is it?
 
-A CPU scheduling simulator is a software tool that mimics how an operating system's kernel manages and allocates processor (CPU) time to competing processes. It allows users to visualize and analyze the behavior of different scheduling algorithms, such as First Come, First Served (FCFS), Round Robin (RR), and Priority Scheduling. By simulating these algorithms, users can observe how processes are selected for execution, how long they wait, and how efficiently the CPU is utilized.
+This program is a small command-line simulator for **First Come, First Served (FCFS)** CPU scheduling. FCFS is also called FIFO scheduling because the first process to enter the ready queue is the first process to receive the CPU.
 
-The program implements concepts covered in Modules 1 and 2: C data types, variables, operators, conditions, loops, arrays, pointers, dynamic memory allocation, structures, functions, and circular queues.
+The program focuses on the C and data-structure concepts covered in Modules 1 and 2: variables, conditions, loops, arrays, pointers, dynamic memory allocation, structures, functions, and circular queues.
 
-## Design overview
+## How the program works
 
-The central design decision is to represent a process as a structure and the ready queue as a circular array of pointers to those structures. A pointer is placed in the queue instead of copying the entire process record. This connects the queue implementation with the structure-pointer concepts.
+Each process is represented by a `Process` structure containing:
 
-The processes are sorted by arrival time before simulation. The scheduler then repeatedly admits processes that have arrived, selects the next process according to the chosen policy, advances the simulated clock, and updates the process state. If no process is ready, the clock jumps to the next arrival time and the CPU is reported as idle.
+- `id`: process number
+- `arrival`: time at which the process becomes ready
+- `burst`: CPU time required by the process
+- `start`: first time the process receives the CPU
+- `finish`: time at which the process completes
 
-The program currently implements three policies or algorithms:
+The ready queue is represented by a `Queue` structure. It stores pointers to `Process` structures in a dynamically allocated circular array. The queue uses `front`, `rear`, `n`, and `cap` to track its state.
 
-- **FCFS(First Come, First Served):** removes processes from the front of the queue and runs each one until completion.
-- **Round Robin:** removes the front process, runs it for a fixed time quantum, and places it at the rear if it still has remaining CPU time.
-- **Priority scheduling:** examines the ready queue and selects the process with the smallest priority number. It is non-preemptive, so the selected process runs to completion.
+Before scheduling, `sortP()` orders the process array by arrival time. During the simulation, `addArr()` places every process that has arrived into the ready queue. `fcfs()` removes processes from the front of the queue and runs each one until its burst is complete. FCFS is non-preemptive, so a running process is never interrupted.
 
-These choices provide a progression from a basic FIFO queue to time-sliced scheduling and then to selection from a ready set.
+If the queue is empty, the CPU is idle. The simulated time then moves forward to the next process arrival.
 
-## Main data structures
+## Main functions
 
-`Process` stores both input data and simulation state:
+### Queue functions
 
-- `id`, `arrival`, `burst`, and `priority` describe the process.
-- `remaining` records the uncompleted CPU time.
-- `first_start` records the first time the process receives the CPU.
-- `completion` records when the process finishes.
+- `initQ()` allocates the queue array and initializes its indexes.
+- `enQ()` inserts a process pointer at the rear.
+- `deQ()` removes a process pointer from the front.
+- `emptyQ()` checks whether the queue contains no processes.
+- `freeQ()` releases the queue memory.
 
-`Queue` implements a circular queue. `front` identifies the next item to remove, `rear` identifies the next insertion position, and `count` records the number of stored pointers. The code uses short names such as `p` for a process, `q` for a queue, `n` for a count, `t` for time, and `nx` for the next process. The expression
+The circular behavior is created with modulo arithmetic:
 
 ```c
 (index + 1) % capacity
 ```
 
-makes the array wrap around to its first position. This avoids shifting array elements after every dequeue.
+When an index reaches the end of the array, it wraps back to position zero. This demonstrates the circular queue implementation from Module 2.
 
-## Important functions
+### `sortP()`
 
-### Queue functions
+`sortP()` uses a simple selection sort to arrange processes by arrival time. This allows processes to be entered in any order while preserving correct FCFS behavior.
 
-`initQ()` dynamically allocates the array of process pointers and initializes the queue indexes. `enQ()` inserts a pointer at the rear, while `deQ()` removes and returns the pointer at the front. `isEmpty()` supports the control flow of each scheduling algorithm, and `freeQ()` releases the queue memory.
+### `addArr()`
 
-These functions demonstrate structures passed by pointer, pointer-to-structure data, dynamic memory, and circular queue operations.
-
-### Process preparation
-
-`sortP()` uses a simple selection sort so that processes can be entered in any order while arrivals are processed correctly. `resetP()` initializes `remaining`, `first_start`, and `completion` before a simulation begins.
-
-`addArr()` scans the sorted process array and enqueues every process whose arrival time is less than or equal to the current simulated time. The `nx` pointer parameter is updated by reference so that each process is admitted only once.
+`addArr()` scans the sorted process array. Every process whose arrival time is less than or equal to the current simulated time is inserted into the ready queue. The `nx` parameter is passed by pointer so the function can update which process should be checked next.
 
 ### `fcfs()`
 
-FCFS is the most direct queue application. The function adds newly arrived processes to the ready queue, removes the process at the front, and runs it for its entire remaining burst. Since FCFS is non-preemptive, the process is not returned to the queue.
+This is the main scheduling function. It repeatedly:
 
-### `rr()`
+1. Adds newly arrived processes to the queue.
+2. Checks whether the queue is empty.
+3. Removes the process at the front of the queue.
+4. Advances the CPU clock by that process's burst time.
+5. Records the process's start and finish times.
 
-Round Robin demonstrates preemption using a time quantum. After a process is dequeued, the function runs it for the smaller of its remaining time and the quantum. If work remains, the process is enqueued again. New arrivals are added before the interrupted process is re-enqueued, giving newly arrived processes their place in the ready queue.
+The function uses a pointer, `cur`, to modify the selected process structure directly.
 
-### `pickPri()` and `pri()`
+### `showRun()`
 
-The priority implementation uses the circular queue as a ready set. `pickPri()` scans the current queue, identifies the process with the smallest priority value, removes that process, and preserves the order of the remaining entries. `pri()` then executes the selected process to completion.
+`showRun()` prints each execution interval in the form:
 
-This is a priority-queue style implementation rather than a separate heap or linked priority queue. It is appropriate for this project because it uses array traversal, comparisons, pointers, and queue operations already covered in the course material.
+```text
+time start -> time end : process
+```
+
+This makes the simulated CPU timeline easy to follow.
 
 ### `showRes()`
 
-After scheduling, this function calculates and prints the standard metrics:
+`showRes()` calculates and displays the scheduling metrics:
 
 ```text
-turnaround time = completion time - arrival time
-waiting time    = turnaround time - burst time
-response time   = first start time - arrival time
+turnaround = finish - arrival
+waiting    = turnaround - burst
+response   = start - arrival
 ```
 
-The function uses structure fields, arithmetic expressions, loops, and call-by-reference-style updates through the process array. It also computes average values using `double` variables.
+It also calculates the average waiting, turnaround, and response times using loops and `double` variables.
 
 ### `main()`
 
-`main()` controls the input and execution flow. It validates the number of processes, dynamically allocates the process array, reads each process, asks the user to choose an algorithm, and reads a time quantum when Round Robin is selected. It then calls `sortP()` and `resetP()`, invokes the selected scheduling function, calls `showRes()`, and releases the allocated memory.
+`main()` handles input and program flow. It validates the number of processes, dynamically allocates the process array, reads arrival and burst times, sorts the processes, calls `fcfs()`, displays the results, and finally releases the allocated memory.
 
 ## Expected behavior
 
-The output shows the execution timeline, including idle intervals, followed by a table of per-process results. Running the same input with different algorithms should produce different execution orders and metric averages.
+For example, the input:
 
-- FCFS is simple but can make short processes wait behind a long process. 
-- Round Robin distributes CPU time more fairly and usually improves early response for multiple ready processes, although a very small quantum produces many context switches in a real operating system. 
-- Priority scheduling favors high-priority processes but can delay low-priority processes for a long time.
+```text
+3
+0 5
+1 3
+2 4
+```
 
-This simulator's purpose is to make queue behavior and scheduling metrics visible through a discrete-time model.
+means that P1 arrives at time 0 and needs 5 CPU units, P2 arrives at time 1 and needs 3 CPU units, and P3 arrives at time 2 and needs 4 CPU units.
+
+Since FCFS is non-preemptive, P1 runs from time 0 to 5. P2 and P3 wait in arrival order, so P2 runs from 5 to 8 and P3 runs from 8 to 12.
+
+The simulator does not model I/O blocking, context-switch overhead, multiple CPUs, or real operating-system processes. Its purpose is to make FIFO queue behavior and scheduling metrics visible through a simple discrete-time model.
 
 ## Example Output
 
-The following example shows the program input, Round Robin execution timeline, and calculated scheduling metrics.
+The following image shows example input, the FCFS execution timeline, and the calculated metrics.
 
 ![Example output from the CPU Scheduling Simulator](assets/Output.png)
-
 
 ## Sources
 
