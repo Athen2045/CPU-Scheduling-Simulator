@@ -10,6 +10,9 @@ typedef struct {
     int burst;
     int start;
     int finish;
+    int turn;
+    int wait;
+    int resp;
 } Process;
 
 /* Circular queue that stores pointers to processes. So that we can manage the order of execution*/
@@ -152,17 +155,17 @@ void showRes(Process p[], int n) {
 
     for (i = 0; i < n; i++) {
         /* Calculates metrics for the current proce*/
-        int turn = p[i].finish - p[i].arrival;
-        int wait = turn - p[i].burst;
-        int resp = p[i].start - p[i].arrival;
+        p[i].turn = p[i].finish - p[i].arrival;
+        p[i].wait = p[i].turn - p[i].burst;
+        p[i].resp = p[i].start - p[i].arrival;
 
         printf("P%-3d %-8d %-6d %-6d %-7d %-11d %-8d %d\n",
                p[i].id, p[i].arrival, p[i].burst, p[i].start,
-               p[i].finish, turn, wait, resp);
+               p[i].finish, p[i].turn, p[i].wait, p[i].resp);
 
-        totalWait += wait;
-        totalTurn += turn;
-        totalResp += resp;
+        totalWait += p[i].wait;
+        totalTurn += p[i].turn;
+        totalResp += p[i].resp;
     }
 
     printf("\nAverage waiting time    : %.2f\n", totalWait / n);

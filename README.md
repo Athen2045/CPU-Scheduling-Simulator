@@ -15,6 +15,7 @@ Each process is represented by a `Process` structure containing:
 - `burst`: CPU time required by the process
 - `start`: first time the process receives the CPU
 - `finish`: time at which the process completes
+- `turn`, `wait`, and `resp`: calculated turnaround, waiting, and response times
 
 The ready queue is represented by a `Queue` structure. It stores pointers to `Process` structures in a dynamically allocated circular array. The queue uses `front`, `rear`, `n`, and `cap` to track its state.
 
@@ -72,7 +73,7 @@ This makes the simulated CPU timeline easy to follow.
 
 ### `showRes()`
 
-`showRes()` calculates and displays the scheduling metrics:
+`showRes()` calculates, stores, and displays the scheduling metrics in the `Process` structure:
 
 ```text
 turnaround = finish - arrival
@@ -110,6 +111,8 @@ The following image shows example input, the FCFS execution timeline, and the ca
 ![Example output from the CPU Scheduling Simulator](assets/Output.png)
 
 ## Sources
+
+The FCFS structure and explanation were informed by these references. Only the FCFS ideas were used; the other algorithms described by the sources were intentionally excluded from this beginner version.
 
 - [Source Code Inspiration](https://github.com/yousefkotp/CPU-Scheduling-Algorithms)
 - [Creating a CPU Scheduling Simulator](https://www.scribd.com/document/977387928/raju-os)
